@@ -1,0 +1,49 @@
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+
+This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
+
+To view a copy of this license, visit:
+http://creativecommons.org/licenses/by-nc-sa/4.0/
+
+or send a letter to:
+Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+
+===============================================================================
+
+ATTRIBUTION REQUIREMENTS:
+
+This project builds upon:
+
+1. Qwen Models
+   - Model: Qwen/Qwen3-4B
+   - Developer: Alibaba Cloud
+   - License: Apache 2.0 / Tongyi Qianwen LICENSE
+   - Model Card: https://huggingface.co/Qwen/Qwen3-4B
+
+2. Math StackExchange Data
+   - Source: Math StackExchange (https://math.stackexchange.com)
+   - License: CC BY-SA 4.0 (user-contributed content)
+   - All training examples are sourced from MSE with full attribution
+   - The SFT dataset (data/splits/train.jsonl, data/splits/val.jsonl)
+     contains MSE answer IDs, source URLs, and author names for each example
+
+3. IntegralBench Evaluation Dataset
+   - Source: IntegralBench project
+   - GitHub: https://github.com/IntegralBench/IntegralBench
+   - Paper: https://arxiv.org/abs/2507.21130v1
+   - Used for evaluation only (not included in this repository)
+
+===============================================================================
+
+NOTICE:
+
+This is a research project for educational and non-commercial purposes only.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+Users are advised to independently verify all mathematical results. The models
+may produce incorrect answers or reasoning.
+
+===============================================================================
