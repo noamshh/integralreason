@@ -1,0 +1,55 @@
+model:
+  name: "Qwen/Qwen3-4B"
+  max_seq_length: 2048
+  load_in_4bit: true
+
+lora:
+  r: 64
+  alpha: 16
+  dropout: 0.05
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+training:
+  batch_size: 2
+  gradient_accumulation_steps: 8
+  learning_rate: 2.0e-4
+  num_epochs: 4
+  warmup_steps: 50
+  seed: 42
+
+  eval_strategy: "steps"
+  eval_steps: 24
+  save_strategy: "steps"
+  save_steps: 24
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+
+optimizer:
+  type: "adamw_8bit"
+  weight_decay: 0.01
+  lr_scheduler_type: "cosine"
+
+logging:
+  steps: 5
+  report_to: "tensorboard"
+  logging_dir: "logs/tensorboard"
+  save_total_limit: 3
+
+paths:
+  dataset: "data/processed/sft_train_qwen3_final.jsonl"
+  output_dir: "models/checkpoints/qwen3-4b-integral"
+  final_model_dir: "models/final/qwen3-4b-integral"
+
+dataset:
+  target_examples: 1000
+  min_score: 4
+  min_reasoning_keywords: 2
+  reasoning_ratio: 1
