@@ -1,8 +1,10 @@
 ![IntegralReason Logo](logo.svg)
 
-**Teaching LLMs to solve integrals (via RLVR with GRPO)**
+ **Learning to solve integrals from how people actually explain them**
 
 Training Qwen3-4B to solve definite integrals with reasoning. First fine-tune on high-quality Math StackExchange answers, then apply reinforcement learning with verifiable rewards.
+
+
 
 ## Key Idea
 
@@ -17,8 +19,21 @@ High-quality Math StackExchange answers contain implicit chain-of-thought reason
 4. Train with GRPO reinforcement learning using format + verification rewards (78 verified prompts)
 5. Evaluate on IntegralBench (100 problems, sorted by difficulty)
 
----
 
+---
+## Table of Contents
+
+- [1. Data Format](#1-data-format)
+- [2. Supervised Fine-Tuning](#2-supervised-fine-tuning)
+- [3. Reinforcement Learning with Verifiable Rewards](#3-reinforcement-learning-with-verifiable-rewards)
+  - [RLVR Challenges](#4-rlvr-challenges)
+- [4. Evaluation](#5-evaluation)
+  - [4.1 IntegralBench Dataset](#51-integralbench-dataset)
+  - [4.2 Performance Comparison](#52-performance-comparison)
+  - [4.3 Example Predictions](#53-example-predictions)
+  - [4.4 Future Work: Symbolic Similarity Metrics](#54-future-work-symbolic-similarity-metrics)
+
+---
 ## 1. Data Format
 
 Training examples use Qwen3's chat template with `enable_thinking=True`:
@@ -168,7 +183,7 @@ Contains integrals from two sources:
 
 ---
 
-## 4. RLVR Challenges
+### RLVR Challenges
 
 RLVR training was challenging. It required extensive experimentation with different hyperparameters (learning rates, batch sizes, reward weights) and prompt datasets (synthetic vs MSE-sourced, verified vs unverified). Even on an A100 GPU, each training run took considerable time, making the iteration cycle slow and resource-intensive.
 
@@ -180,9 +195,9 @@ RLVR training was challenging. It required extensive experimentation with differ
 
 ---
 
-## 5. Evaluation
+## 4. Evaluation
 
-### 5.1 IntegralBench Dataset
+### 4.1 IntegralBench Dataset
 
 Evaluated on **IntegralBench**, a challenging benchmark for definite integrals ([github](https://github.com/IntegralBench/IntegralBench), [arXiv](https://arxiv.org/abs/2507.21130v1)).
 
@@ -197,7 +212,7 @@ Evaluated on **IntegralBench**, a challenging benchmark for definite integrals (
 - **Consistency**: Average fraction of correct samples per problem
 - **Other metrics**: Parsing success, format compliance, generation time
 
-### 5.2 Performance Comparison
+### 4.2 Performance Comparison
 
 **Overall Results:**
 
@@ -218,7 +233,7 @@ Evaluated on **IntegralBench**, a challenging benchmark for definite integrals (
 
 RLVR training improved format compliance (62% to 66%) with parsing success remaining steady at 73%. Pass@3 accuracy improved from 29% to 31%. The model shows stronger performance on difficulty 2.0 problems (43.3% pass@3).
 
-### 5.3 Example Predictions
+### 4.3 Example Predictions
 
 #### Correct Solution
 
@@ -267,7 +282,7 @@ The model correctly identified the sign changes at $x = \frac{7\pi}{6}$ and $\fr
 
 **Insight:** Both answers are rational linear combinations of the same basis $\{\pi, \sqrt{3}\}$. This partial correctness is invisible to numerical verification. A symbolic similarity metric could detect this shared structure and assign partial credit.
 
-### 5.4 Future Work: Symbolic Similarity Metrics
+### 4.4 Future Work: Symbolic Similarity Metrics
 
 Current evaluation uses only numerical correctness (tolerance $10^{-4}$), treating all errors as equally wrong. However, Error Case 2 reveals that some incorrect answers are "closer" to correct than others in symbolic structure.
 
