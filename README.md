@@ -185,13 +185,23 @@ Contains integrals from two sources:
 
 ### RLVR Challenges
 
-RLVR training was challenging. It required extensive experimentation with different hyperparameters (learning rates, batch sizes, reward weights) and prompt datasets (synthetic vs MSE-sourced, verified vs unverified). Even on an A100 GPU, each training run took considerable time, making the iteration cycle slow and resource-intensive.
+RLVR training was challenging. First runs broke because prompts weren't formatted as message objects. Then generation quality was terrible at default settings. Then correctness rewards stayed at zero for 40+ steps because of too much noise in the dataset.
 
 **Key Takeaways:**
 - Verify prompt formatting (GRPO needs message structure)
 - Use verified datasets when correctness signal is critical
 - Actively penalize violations, don't just withhold rewards
 - Monitor KL divergence for policy instability
+
+**Resource Constraints:**
+
+This is a personal research project conducted on rented A100 GPU time. Each RLVR training run took hours, making extensive hyperparameter search impractical. The 78-prompt verified dataset and 444-example SFT dataset reflect what was achievable within these constraints.
+
+**Future Scaling:**
+- **SFT**: Train on larger corpus with better reasoning coverage
+- **RLVR**: Expand verified prompts from 78 to 1k+, experiment with curriculum learning
+- **Base model**: Scale from Qwen3-4B to 7B or 14B for better mathematical reasoning
+- **Compute**: More extensive hyperparameter tuning with proper grid search
 
 ---
 
