@@ -44,7 +44,6 @@ logging:
   save_total_limit: 3
 
 paths:
-  dataset: "data/processed/sft_train_qwen3_final.jsonl"
   output_dir: "models/checkpoints/qwen3-4b-integral"
   final_model_dir: "models/final/qwen3-4b-integral"
 

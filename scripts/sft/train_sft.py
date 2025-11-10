@@ -77,8 +77,6 @@ class SampleGenerationCallback(TrainerCallback):
 
 
 if __name__ == "__main__":
-    print(f"dataset: {cfg.paths.dataset}")
-    print(f"target examples: {cfg.dataset.target_examples}")
     print(f"\n1. Loading {cfg.model.name} model...")
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=cfg.model.name,
@@ -97,7 +95,6 @@ if __name__ == "__main__":
         random_state=cfg.training.seed,
     )
     print("\n3. Loading datasets...")
-
     train_path = project_root / "data" / "splits" / "train.jsonl"
     train_dataset = load_dataset_from_jsonl(train_path)
     print(f"train: {len(train_dataset)} examples")
