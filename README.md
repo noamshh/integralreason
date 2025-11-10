@@ -45,33 +45,35 @@ The SymPy format is key for fast verification (for RLVR). The model's answer can
 
 ## 2. Supervised Fine-Tuning
 
-**Base Model:** Qwen/Qwen3-4B 
+### SFT Configuration
 
-**LoRA:**
-```yaml
-r: 64                    # rank
-alpha: 16               
-dropout: 0.05
-target_modules:
-  - q_proj
-  - k_proj
-  - v_proj
-  - o_proj
-  - gate_proj
-  - up_proj
-  - down_proj
-```
 
-**Training Hyperparameters:**
 ```yaml
-batch_size: 2
-gradient_accumulation_steps: 8    # effective batch = 16
-learning_rate: 2.0e-4
-num_epochs: 4
-max_seq_length: 2048
-optimizer: adamw_8bit
-lr_scheduler: cosine
-warmup_steps: 50
+model:
+   base: "Qwen/Qwen3-4B"
+   
+lora:
+   r: 64                  
+   alpha: 16               
+   dropout: 0.05
+   target_modules:
+     - q_proj
+     - k_proj
+     - v_proj
+     - o_proj
+     - gate_proj
+     - up_proj
+     - down_proj
+     
+training:
+   batch_size: 2
+   gradient_accumulation_steps: 8    
+   learning_rate: 2.0e-4
+   num_epochs: 4
+   max_seq_length: 2048
+   optimizer: adamw_8bit
+   lr_scheduler: cosine
+   warmup_steps: 50
 ```
 
 ### Prompt Format
@@ -125,9 +127,11 @@ Gradually prioritize correctness as format is learned.
 
 ### RLVR Configuration
 
+**Starting from the SFT checkpoint**, we apply GRPO reinforcement learning:
 
 ```yaml
 model:
+  base: models/sft/final/qwen3-4b-integral-merged  # SFT checkpoint
   max_seq_length: 2048
   load_in_4bit: true
 
@@ -147,7 +151,7 @@ training:
 
 ### Prompts Dataset
 
-**File:** `data/rlvr/prompts.jsonl` (78 verified prompts with message structure for GRPO)
+**File:** `data/rlvr/prompts.jsonl` 
 
 Contains integrals from two sources:
 - Synthetically created integrals (50)
@@ -166,7 +170,8 @@ Contains integrals from two sources:
 
 ## 4. RLVR Challenges
 
-RLVR training was challenging.
+RLVR training was challenging. It required extensive experimentation with different hyperparameters (learning rates, batch sizes, reward weights) and prompt datasets (synthetic vs MSE-sourced, verified vs unverified). Even on an A100 GPU, each training run took considerable time, making the iteration cycle slow and resource-intensive.
+
 **Key Takeaways:**
 - Verify prompt formatting (GRPO needs message structure)
 - Use verified datasets when correctness signal is critical
@@ -186,9 +191,10 @@ Evaluated on **IntegralBench**, a challenging benchmark for definite integrals (
 - **Evaluation subset:** First 100 problems, sorted from least to most difficult
 
 **Methodology:**
-- **3 samples per problem** (temperature 0.6)
-- **pass@3**: At least 1 out of 3 samples correct (peak performance)
-- **all@3**: All 3 samples correct (consistency)
+- **3 samples per problem** (temperature=0.6, top_p=0.95)
+- **pass@3**: At least 1 out of 3 samples correct 
+- **all@3**: All 3 samples correct 
+- **Consistency**: Average fraction of correct samples per problem
 - **Other metrics**: Parsing success, format compliance, generation time
 
 ### 5.2 Performance Comparison
@@ -216,7 +222,7 @@ RLVR training improved format compliance (62% to 66%) with parsing success remai
 
 #### Correct Solution
 
-**Problem:** $\int_0^1\sin^2(\log x)dx$ (difficulty 2.0)
+**Problem:** $\int_0^1\sin^2(\log x)dx$ 
 **Expected Answer:** $\frac{2}{5} = 0.4$
 
 **Model Output:**
