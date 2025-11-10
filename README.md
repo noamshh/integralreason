@@ -198,7 +198,7 @@ RLVR training was challenging. First runs broke because prompts weren't formatte
 This is a personal research project conducted on rented A100 GPU time. Each RLVR training run took hours, making extensive hyperparameter search impractical. The 78-prompt verified dataset and 444-example SFT dataset reflect what was achievable within these constraints.
 
 **Future Scaling:**
-- **SFT**: Train on larger corpus with better reasoning coverage
+- **SFT**: Train on larger corpus with better reasoning coverage. Promising datasets include [WebInstructSub](https://huggingface.co/datasets/TIGER-Lab/WebInstructSub) (2.34M Stack Exchange Q&A pairs - validates this project's approach at scale) and [DeepMath-103K](https://github.com/zwhe99/DeepMath) (103K challenging math problems with 3 reasoning solutions per problem)
 - **RLVR**: Expand verified prompts from 78 to 1k+, experiment with curriculum learning
 - **Base model**: Scale from Qwen3-4B to 7B or 14B for better mathematical reasoning
 - **Compute**: More extensive hyperparameter tuning with proper grid search
