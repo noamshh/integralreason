@@ -1,42 +1,38 @@
 ![IntegralReason Logo](logo.svg)
 
- **Learning to solve integrals from how people actually explain them**
+**Learning to solve integrals from how people actually explain them.**
 
-Training Qwen3-4B to solve definite integrals with reasoning. First fine-tune on high-quality Math StackExchange answers, then apply reinforcement learning with verifiable rewards.
-
-
+IntegralReason teaches Qwen3-4B to solve definite integrals in two stages: fine-tuning on Math StackExchange answers, then reinforcement learning with rewards that check the answer.
 
 ## Key Idea
 
-High-quality Math StackExchange answers contain implicit chain-of-thought reasoning. By training on these solutions wrapped in `<think>` tags, the model learns mathematical problem-solving patterns without needing explicit "Step 1, Step 2" annotations.
+Good Math StackExchange answers already explain their reasoning. Wrapping them in `<think>` tags gives the model chain-of-thought examples without hand-written "Step 1, Step 2" annotations.
 
 ## Pipeline
 
-1. Extract 444 integral problems and solutions from Math StackExchange
-   - Filtered by quality: score higher than 4, at least 2 reasoning keywords ("therefore", "substitute", "consider", "step 1", "next", etc.)
-2. Use Claude Sonnet 4 to extract final answers in both LaTeX and SymPy formats
-3. Fine-tune Qwen3-4B with LoRA on the solution dataset, outputting answers in \boxed{} format
-4. Train with GRPO reinforcement learning using format + verification rewards (78 verified prompts)
-5. Evaluate on IntegralBench (100 problems, sorted by difficulty)
+1. **Collect:** 444 integral problems and answers from Math StackExchange (score above 4, with at least two reasoning words such as "therefore" or "substitute").
+2. **Extract answers:** Claude Sonnet 4 pulls out each final answer in LaTeX and SymPy form.
+3. **Fine-tune (SFT):** LoRA on Qwen3-4B, with answers in `\boxed{}`.
+4. **Reinforce (RLVR):** GRPO on 78 verified prompts, rewarding format and correctness.
+5. **Evaluate:** the first 100 problems of IntegralBench.
 
-
----
-## Table of Contents
+## Contents
 
 - [1. Data Format](#1-data-format)
 - [2. Supervised Fine-Tuning](#2-supervised-fine-tuning)
 - [3. Reinforcement Learning with Verifiable Rewards](#3-reinforcement-learning-with-verifiable-rewards)
-  - [RLVR Challenges](#4-rlvr-challenges)
-- [4. Evaluation](#5-evaluation)
-  - [4.1 IntegralBench Dataset](#51-integralbench-dataset)
-  - [4.2 Performance Comparison](#52-performance-comparison)
-  - [4.3 Example Predictions](#53-example-predictions)
-  - [4.4 Future Work: Symbolic Similarity Metrics](#54-future-work-symbolic-similarity-metrics)
+  - [What Went Wrong, and What I Learned](#what-went-wrong-and-what-i-learned)
+- [4. Evaluation](#4-evaluation)
+  - [4.1 IntegralBench](#41-integralbench)
+  - [4.2 Results](#42-results)
+  - [4.3 Example Predictions](#43-example-predictions)
+  - [4.4 Future Work: Partial Credit](#44-future-work-partial-credit)
 
 ---
+
 ## 1. Data Format
 
-Training examples use Qwen3's chat template with `enable_thinking=True`:
+Each training example uses Qwen3's chat template with `enable_thinking=True`:
 
 ```json
 {
@@ -53,15 +49,13 @@ Training examples use Qwen3's chat template with `enable_thinking=True`:
   }
 }
 ```
-The SymPy format is key for fast verification (for RLVR). The model's answer can be parsed, evaluated numerically, and compared against ground truth (tolerance 1e-6) to provide a correctness reward signal.
-
+The SymPy answer is what makes RL possible: it can be parsed, evaluated numerically and compared with the ground truth, which gives a cheap correctness reward.
 
 ---
 
 ## 2. Supervised Fine-Tuning
 
-### SFT Configuration
-
+### Configuration
 
 ```yaml
 model:
@@ -91,16 +85,14 @@ training:
    warmup_steps: 50
 ```
 
-### Prompt Format
-
-Uses Qwen3 chat template with `enable_thinking=True`:
+### Example
 
 **Input:**
 ```
 Evaluate the integral: $\int_{0}^{1} x^2 dx$
 ```
 
-**Expected Output Format:**
+**Target output:**
 ```
 <think>
 We evaluate the integral using the power rule:
@@ -118,31 +110,27 @@ $$\int_{0}^{1} x^2 dx = \left[\frac{x^3}{3}\right]_0^1 = \frac{1}{3} - 0 = \frac
 
 ## 3. Reinforcement Learning with Verifiable Rewards
 
-### Reward Functions
+### Rewards
 
-**1. Format Reward** (0.0 to 1.0, with penalties)
-- `<think>` tags with at least 250 chars: +0.25
-- "## The final answer is:" header: +0.25
-- Exactly 2 `\boxed{}` total: +0.25 (penalty -0.4 if >2)
-- "Sympy format" once in last line: +0.25 (penalty -0.4 if >1)
+**Format reward** (up to 1.0). Each item is worth +0.25:
+- a `<think>` block of at least 250 characters
+- a "## The final answer is:" header
+- exactly two `\boxed{}` (−0.4 if there are more)
+- "SymPy format" once, on the last line (−0.4 if repeated)
 
-**2. Correctness Reward** (0.0 or 1.0)
-- Incorrect or failed verification: 0.0
-- Numerically correct (tolerance 1e-4): 1.0
+**Correctness reward** (0 or 1). 1 if the answer matches the ground truth to within 1e-4, otherwise 0.
 
-### Adaptive Weight Scheduling
+The weights shift toward correctness as the model learns the format:
 
 | Epoch | Format | Correctness |
 |-------|--------|-------------|
-| 0-1 | 0.3 | 0.7 |
-| 1-2 | 0.2 | 0.8 |
+| 0–1 | 0.3 | 0.7 |
+| 1–2 | 0.2 | 0.8 |
 | 2+ | 0.15 | 0.85 |
 
-Gradually prioritize correctness as format is learned.
+### Configuration
 
-### RLVR Configuration
-
-**Starting from the SFT checkpoint**, we apply GRPO reinforcement learning:
+GRPO starts from the merged SFT checkpoint:
 
 ```yaml
 model:
@@ -164,13 +152,9 @@ training:
   num_generations: 8
 ```
 
-### Prompts Dataset
+### Prompts
 
-**File:** `data/rlvr/prompts.jsonl` 
-
-Contains integrals from two sources:
-- Synthetically created integrals (50)
-- Math StackExchange problems (28)
+`data/rlvr/prompts.jsonl` holds 78 verified integrals: 50 synthetic and 28 from Math StackExchange.
 
 ```json
 {
@@ -181,57 +165,48 @@ Contains integrals from two sources:
 }
 ```
 
----
+### What Went Wrong, and What I Learned
 
-### RLVR Challenges
+RLVR took several attempts. The first runs crashed because the prompts weren't chat messages. Next, the default generation settings produced poor output. Then the correctness reward stayed at zero for over 40 steps because the prompt set was too noisy.
 
-RLVR training was challenging. First runs broke because prompts weren't formatted as message objects. Then generation quality was terrible at default settings. Then correctness rewards stayed at zero for 40+ steps because of too much noise in the dataset.
+Lessons:
+- GRPO expects prompts as chat messages, so check that first.
+- When the correctness signal matters, train only on verified prompts.
+- Penalize bad output instead of just withholding reward.
+- Watch the KL divergence for signs of instability.
 
-**Key Takeaways:**
-- Verify prompt formatting (GRPO needs message structure)
-- Use verified datasets when correctness signal is critical
-- Actively penalize violations, don't just withhold rewards
-- Monitor KL divergence for policy instability
+This was a personal project on rented A100s. Each RL run took hours, so a broad hyperparameter search wasn't practical, and the dataset sizes (444 for SFT, 78 for RL) reflect that budget.
 
-**Resource Constraints:**
+### Next Steps
 
-This is a personal research project conducted on rented A100 GPU time. Each RLVR training run took hours, making extensive hyperparameter search impractical. The 78-prompt verified dataset and 444-example SFT dataset reflect what was achievable within these constraints.
-
-**Future Scaling:**
-- **SFT**: Train on larger corpus with better reasoning coverage. Promising datasets include [WebInstructSub](https://huggingface.co/datasets/TIGER-Lab/WebInstructSub) (2.34M Stack Exchange Q&A pairs - validates this project's approach at scale) and [DeepMath-103K](https://github.com/zwhe99/DeepMath) (103K challenging math problems with 3 reasoning solutions per problem)
-- **RLVR**: Expand verified prompts from 78 to 1k+, experiment with curriculum learning
-- **Base model**: Scale from Qwen3-4B to 7B or 14B for better mathematical reasoning
-- **Compute**: More extensive hyperparameter tuning with proper grid search
+- **More SFT data:** [WebInstructSub](https://huggingface.co/datasets/TIGER-Lab/WebInstructSub) (2.34M Stack Exchange Q&A pairs, the same idea at scale) or [DeepMath-103K](https://github.com/zwhe99/DeepMath) (103K hard problems, three solutions each).
+- **More RL prompts:** grow from 78 to 1,000+ and try curriculum learning.
+- **Bigger model:** Qwen3 7B or 14B.
+- **More tuning:** a proper hyperparameter search.
 
 ---
 
 ## 4. Evaluation
 
-### 4.1 IntegralBench Dataset
+### 4.1 IntegralBench
 
-Evaluated on **IntegralBench**, a challenging benchmark for definite integrals ([github](https://github.com/IntegralBench/IntegralBench), [arXiv](https://arxiv.org/abs/2507.21130v1)).
+[IntegralBench](https://github.com/IntegralBench/IntegralBench) ([paper](https://arxiv.org/abs/2507.21130v1)) has 317 definite integrals rated 1–5 for difficulty (mean 3.52). I used the first 100, sorted from easiest to hardest.
 
-**Dataset:**
-- **317 definite integrals**, difficulty 1-5 (mean: 3.52)
-- **Evaluation subset:** First 100 problems, sorted from least to most difficult
+Each problem is sampled 3 times (temperature 0.6, top-p 0.95):
+- **pass@3:** at least one sample is correct
+- **all@3:** all three are correct
+- **Consistency:** average share of correct samples per problem
 
-**Methodology:**
-- **3 samples per problem** (temperature=0.6, top_p=0.95)
-- **pass@3**: At least 1 out of 3 samples correct 
-- **all@3**: All 3 samples correct 
-- **Consistency**: Average fraction of correct samples per problem
-- **Other metrics**: Parsing success, format compliance, generation time
+I also report how often the answer could be parsed, format compliance, and generation time.
 
-### 4.2 Performance Comparison
-
-**Overall Results:**
+### 4.2 Results
 
 | Model | pass@3 | all@3 | Consistency | Parsing Success | Format Compliance | Mean Gen Time (s) |
 |-------|--------|-------|-------------|-----------------|-------------------|-------------------|
 | SFT Baseline | 0.290 | 0.040 | 0.143 | 0.730 | 0.620 | 21.16 |
 | RLVR Final | 0.310 | 0.040 | 0.163 | 0.730 | 0.663 | 27.05 |
 
-**Performance by Difficulty:**
+By difficulty:
 
 | Difficulty | RLVR pass@3 | RLVR all@3 | SFT pass@3 | SFT all@3 |
 |-----------|-------------|-----------|-----------|-----------|
@@ -241,7 +216,7 @@ Evaluated on **IntegralBench**, a challenging benchmark for definite integrals (
 
 ![Performance Metrics](performance_metrics.png)
 
-RLVR training improved format compliance (62% to 66%) with parsing success remaining steady at 73%. Pass@3 accuracy improved from 29% to 31%. The model shows stronger performance on difficulty 2.0 problems (43.3% pass@3).
+RLVR raised format compliance from 62% to 66% and pass@3 from 29% to 31%, while parsing success stayed at 73%. The best results were on difficulty-2 problems (43% pass@3). With 100 problems, the accuracy gain is small enough to be noise.
 
 ### 4.3 Example Predictions
 
@@ -266,11 +241,11 @@ $$ \int_0^1\sin^2(\log x)dx = \frac12\cdot1-\frac12\cdot\frac15 = \frac25 $$
 </think>
 
 ## The final answer is: $\boxed{\frac{2}{5}}$
-## Sympy format: \boxed{2/5}
+## SymPy format: \boxed{2/5}
 ```
 
 
-#### Error Case 1: Partial Fractions Algebraic Error
+#### Error 1: Algebra Slip in Partial Fractions
 
 **Problem:** $\int_1^2\frac{9x+4}{x^5+3x^2+x}\text{ dx}$ 
 
@@ -278,9 +253,9 @@ $$ \int_0^1\sin^2(\log x)dx = \frac12\cdot1-\frac12\cdot\frac15 = \frac25 $$
 
 **Model Prediction:** $(1+\frac{5}{2}\sqrt{3})\ln 2 \approx 3.69$ 
 
-The model correctly identified the partial fractions approach and attempted to decompose $\frac{9x+4}{x(x^4+3x+1)}$. However, it made errors in solving the system of equations for coefficients, arriving at incorrect values for $B, C, D, E$. 
+The model chose the right method and set up the decomposition of $\frac{9x+4}{x(x^4+3x+1)}$, but solved for the coefficients $B, C, D, E$ incorrectly.
 
-#### Error Case 2: Correct Symbols, Wrong Coefficients
+#### Error 2: Right Ingredients, Wrong Coefficients
 
 **Problem:** $\int_0^{2\pi}\left|1+2\sin x\right|dx$ 
 
@@ -288,19 +263,17 @@ The model correctly identified the partial fractions approach and attempted to d
 
 **Model Prediction:** $-\frac{5\pi}{6} + \sqrt{3} \approx -0.89$
 
-The model correctly identified the sign changes at $x = \frac{7\pi}{6}$ and $\frac{11\pi}{6}$, split the integral into three piecewise regions, and performed the integration. However, algebraic errors in handling the piecewise antiderivatives led to wrong coefficients.
+The model found the sign changes at $x = \frac{7\pi}{6}$ and $\frac{11\pi}{6}$ and split the integral into three pieces, but slipped in the algebra.
 
-**Insight:** Both answers are rational linear combinations of the same basis $\{\pi, \sqrt{3}\}$. This partial correctness is invisible to numerical verification. A symbolic similarity metric could detect this shared structure and assign partial credit.
+Notice that both answers combine the same constants, $\pi$ and $\sqrt{3}$. A numerical check can't see that the model was close.
 
-### 4.4 Future Work: Symbolic Similarity Metrics
+### 4.4 Future Work: Partial Credit
 
-Current evaluation uses only numerical correctness (tolerance $10^{-4}$), treating all errors as equally wrong. However, Error Case 2 reveals that some incorrect answers are "closer" to correct than others in symbolic structure.
+Right now any answer outside the 1e-4 tolerance counts as simply wrong. Error 2 shows that some wrong answers are much closer than others. Two ways to measure that:
+- **Symbol counts:** count constants such as $\pi$, $e$ and $\sqrt{2}$ in each answer and compare with cosine similarity.
+- **Embeddings:** embed answers with a math-expression encoder (like the E-Gen embeddings in [IntegralIndx](https://github.com/noamshh/integralindx)) and compare them.
 
-**Proposed approaches:**
-- **Bag-of-words on symbolic tokens**: Count occurrences of constants ($\pi$, $e$, $\sqrt{2}$, etc.) and measure cosine similarity
-- **Dense vector embeddings**: Use mathematical expression encoders (like IntegralIndx's E-Gen embeddings) to embed answers in a semantic space
-
-These metrics could provide partial credit for answers that demonstrate conceptual understanding but suffer from algebraic execution errors, leading to more nuanced training signals in future RLVR iterations.
+Partial credit would give RLVR a richer signal for answers that have the right idea but the wrong algebra.
 
 ---
 **Project by Noam Shalev**
